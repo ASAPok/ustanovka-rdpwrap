@@ -1,0 +1,74 @@
+:: Proverka prav administratora
+net session >nul 2>&1
+if %errorLevel% neq 0 (
+echo Etot skript trebuet prav administratora.
+echo Pozhaluysta, zapustite ego ot imeni administratora.
+pause
+exit /b 1
+)
+
+:: Vklyuchenie udalennogo rabochego stola
+powershell -Command "Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -value 0" && (
+echo Udalennyy rabochiy stol vklyuchen.
+) || (
+echo Ne udalos' vklyuchit' udalennyy rabochiy stol.
+)
+
+:: Razreshenie neskol'kikh seansov RDP
+powershell -Command "Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fSingleSessionPerUser" -value 0" && (
+echo Razresheny neskol'ko seansov RDP.
+) || (
+echo Ne udalos' razreshit' neskol'ko seansov RDP.
+)
+
+:: Perezapusk sluzhby udalennykh rabochikh stolov
+net stop TermService && net start TermService && (
+echo Sluzhba udalennykh rabochikh stolov perezapushchena.
+) || (
+echo Ne udalos' perezapustit' sluzhbu udalennykh rabochikh stolov.
+)
+
+:: Ustanovka puti
+set "INSTALL_PATH=C:\RDPWrapper"
+mkdir "%INSTALL_PATH%" 2>nul
+
+:: Skachivanie RDP Wrapper
+echo Skachivanie RDP Wrapper
+powershell -Command "(New-Object Net.WebClient).DownloadFile('https://github.com/stascorp/rdpwrap/releases/download/v1.6.2/RDPWrap-v1.6.2.zip', '%INSTALL_PATH%\RDPWrap.zip')"
+
+:: Raspakovka
+echo Raspakovka...
+powershell -Command "Expand-Archive -Path '%INSTALL_PATH%\RDPWrap.zip' -DestinationPath '%INSTALL_PATH%' -Force"
+
+:: Ostanovka sluzhby terminalov s ispol'zovaniem Force
+echo Ostanovka sluzhby terminalov...
+powershell -Command "Stop-Service termservice -Force"
+
+:: Ustanovka RDP Wrapper
+echo Ustanovka RDP Wrapper
+call "%INSTALL_PATH%\install.bat"
+
+:: Skachivanie obnovlennogo rdpwrap.ini
+echo Skachivanie obnovlennogo rdpwrap.ini...
+powershell -Command "Invoke-WebRequest https://raw.githubusercontent.com/sebaxakerhtc/rdpwrap.ini/master/rdpwrap.ini -outfile '%INSTALL_PATH%\rdpwrap.ini'"
+
+:: Kopirovanie rdpwrap.ini v papku ustanovki (na sluchay, esli ona otlichaetsya)
+echo Kopirovanie rdpwrap.ini v papku ustanovki...
+copy /Y "%INSTALL_PATH%\rdpwrap.ini" "C:\Program Files\RDP Wrapper\rdpwrap.ini"
+
+:: Zapusk sluzhby terminalov
+echo Zapusk sluzhby terminalov...
+net start TermService
+
+:: Proverka statusa
+echo Proverka statusa...
+"%INSTALL_PATH%\RDPConf.exe"
+
+:: Perezapusk RDP i povtornaya zagruzka rdpwrap.ini
+echo Perezapusk RDP i povtornaya zagruzka rdpwrap.ini...
+net stop TermService
+net start TermService
+powershell -Command "Stop-Service termservice -Force"
+powershell -Command "Invoke-WebRequest https://raw.githubusercontent.com/sebaxakerhtc/rdpwrap.ini/master/rdpwrap.ini -outfile 'C:\Program Files\RDP Wrapper\rdpwrap.ini'"
+net stop TermService
+net start TermService
