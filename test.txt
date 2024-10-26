@@ -1,0 +1,31 @@
+@echo off
+setlocal enabledelayedexpansion
+
+REM Connection parameters
+set "remoteUser=vpn"
+set "localPort=3389"
+set "remotePort=5001"
+
+REM Number of reconnection attempts
+set "maxRetries=999999"
+REM Waiting time before retrying (in seconds)
+set "retryDelay=5"
+
+REM Path to ssh.exe
+set "sshPath=C:\Windows\System32\OpenSSH\ssh.exe"
+
+for /L %%i in (1,1,%maxRetries%) do (
+    echo Attempt %%i of %maxRetries%...
+    "%sshPath%" -R %remotePort%:localhost:%localPort% %remoteUser%@vpn-russia.tplinkdns.com
+    
+    if !errorlevel! equ 0 (
+        echo Connection successfully established.
+        exit /b 0
+    ) else (
+        echo Connection failed. Waiting %retryDelay% seconds before retrying...
+        timeout /t %retryDelay% /nobreak
+    )
+)
+
+echo Maximum number of connection attempts exceeded.
+exit /b 1
